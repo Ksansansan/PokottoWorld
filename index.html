@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ぽこっとわーるど！ 魔物地計算機</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-sub: #666666;
+            --accent-phys: #e57373; /* Soft Red for Strength */
+            --accent-mag: #64b5f6;  /* Soft Blue for Intellect */
+            --border-radius: 12px;
+            --shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify_content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        /* Input Section */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .input-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input[type="number"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #888;
+        }
+
+        /* Result Section */
+        .result-display {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .result-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: var(--text-sub);
+        }
+
+        .result-box .level {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+
+        .phys-color { color: var(--accent-phys); }
+        .mag-color { color: var(--accent-mag); }
+
+        /* Simulator Section */
+        .sim-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .sim-control-btn {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: var(--text-main);
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sim-control-btn:hover {
+            background-color: #eee;
+        }
+
+        .sim-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .sim-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .sim-card {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #eee;
+        }
+
+        .sim-card.phys { border-top: 4px solid var(--accent-phys); }
+        .sim-card.mag { border-top: 4px solid var(--accent-mag); }
+
+        .mob-stats {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .multiplier-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .mini-btn {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .sim-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stat-row label {
+            margin: 0;
+            width: 60px;
+        }
+
+        .stat-row input {
+            width: calc(100% - 70px);
+            padding: 8px;
+            font-size: 1rem;
+        }
+        
+        .note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 20px;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .input-group {
+                grid-template-columns: 1fr;
+            }
+            .sim-grid {
+                grid-template-columns: 1fr;
+            }
+            .result-display {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>ぽこっとわーるど！ 計算機</h1>
+
+    <!-- Reachability Calculator -->
+    <div class="card">
+        <div class="input-group">
+            <div class="input-item">
+                <label>現在のHP</label>
+                <input type="number" id="currentHp" value="100" placeholder="0">
+            </div>
+            <div class="input-item">
+                <label>筋力</label>
+                <input type="number" id="currentStr" value="100" placeholder="0">
+            </div>
+            <div class="input-item">
+                <label>知力</label>
+                <input type="number" id="currentInt" value="100" placeholder="0">
+            </div>
+        </div>
+
+        <div class="result-display">
+            <div class="result-box">
+                <h3>【物理】到達予想</h3>
+                <div class="level phys-color" id="maxPhysLevel">0級</div>
+            </div>
+            <div class="result-box">
+                <h3>【魔法】到達予想</h3>
+                <div class="level mag-color" id="maxMagLevel">0級</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator -->
+    <div class="card">
+        <div class="sim-header">
+            <button class="sim-control-btn" onclick="changeSimLevel(-25)">◀</button>
+            <div class="sim-title">怪奇の魔物地 <span id="simLevelDisplay">25</span>級</div>
+            <button class="sim-control-btn" onclick="changeSimLevel(25)">▶</button>
+        </div>
+
+        <div class="sim-grid">
+            <!-- Physical Simulator -->
+            <div class="sim-card phys">
+                <div style="text-align:center; font-weight:bold; color:var(--accent-phys); margin-bottom:10px;">【物理】魔物</div>
+                <div class="mob-stats" id="physMobStats">HP:1300 / ATK:130</div>
+                
+                <div class="multiplier-control">
+                    HP倍率 
+                    <button class="mini-btn" onclick="adjustMultiplier('phys', -1)">◀</button>
+                    <span id="physMultDisplay">x1</span>
+                    <button class="mini-btn" onclick="adjustMultiplier('phys', 1)">▶</button>
+                </div>
+
+                <div class="sim-inputs">
+                    <div class="stat-row">
+                        <label>HP</label>
+                        <input type="number" id="simPhysHp" oninput="recalcSim('phys')">
+                    </div>
+                    <div class="stat-row">
+                        <label>筋力</label>
+                        <input type="number" id="simPhysStr" readonly style="background:#f0f0f0; color:#555;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Magical Simulator -->
+            <div class="sim-card mag">
+                <div style="text-align:center; font-weight:bold; color:var(--accent-mag); margin-bottom:10px;">【魔法】魔物</div>
+                <div class="mob-stats" id="magMobStats">HP:1300 / ATK:130</div>
+
+                <div class="multiplier-control">
+                    HP倍率 
+                    <button class="mini-btn" onclick="adjustMultiplier('mag', -1)">◀</button>
+                    <span id="magMultDisplay">x1</span>
+                    <button class="mini-btn" onclick="adjustMultiplier('mag', 1)">▶</button>
+                </div>
+
+                <div class="sim-inputs">
+                    <div class="stat-row">
+                        <label>HP</label>
+                        <input type="number" id="simMagHp" oninput="recalcSim('mag')">
+                    </div>
+                    <div class="stat-row">
+                        <label>知力</label>
+                        <input type="number" id="simMagInt" readonly style="background:#f0f0f0; color:#555;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="note">※ HP倍率 x1 = 2回攻撃(1被弾耐久)、x2 = 4回攻撃(3被弾耐久) で計算</div>
+    </div>
+</div>
+
+<script>
+    // --- Constants & State ---
+    let simLevel = 25;
+    let physMult = 1;
+    let magMult = 1;
+
+    // --- DOM Elements ---
+    const els = {
+        curHp: document.getElementById('currentHp'),
+        curStr: document.getElementById('currentStr'),
+        curInt: document.getElementById('currentInt'),
+        resPhys: document.getElementById('maxPhysLevel'),
+        resMag: document.getElementById('maxMagLevel'),
+        
+        simLvl: document.getElementById('simLevelDisplay'),
+        
+        physStats: document.getElementById('physMobStats'),
+        physMultDisp: document.getElementById('physMultDisplay'),
+        simPhysHp: document.getElementById('simPhysHp'),
+        simPhysStr: document.getElementById('simPhysStr'),
+
+        magStats: document.getElementById('magMobStats'),
+        magMultDisp: document.getElementById('magMultDisplay'),
+        simMagHp: document.getElementById('simMagHp'),
+        simMagInt: document.getElementById('simMagInt'),
+    };
+
+    // --- Core Logic ---
+
+    // Monster Stats Formula
+    function getMobStats(level) {
+        return {
+            hp: (level + 1) * 50,
+            atk: (level + 1) * 5
+        };
+    }
+
+    // Battle Logic: Calculate Max Level Reachable
+    // Logic: Player attacks first.
+    // Player Attacks Allowed = floor((PlayerHP - 1) / MobAtk) + 1
+    // Max Dmg = Attacks * PlayerStr
+    // Win if Max Dmg >= MobHP
+    function calculateMaxLevel(hp, atkStat) {
+        if (hp <= 0 || atkStat <= 0) return 0;
+        
+        let level = 0;
+        // Simple loop to find max level (optimized loop could be binary search, but levels aren't infinite)
+        // Safety break at 10000 to prevent freeze if inputs are huge
+        while (level < 10000) {
+            const mob = getMobStats(level);
+            
+            // How many times can player attack?
+            // If HP 100, MobAtk 100 -> 1 hit survives? No, usually HP>Dmg needed to survive.
+            // Assuming: Player HP must remain > 0 after taking hits.
+            // Hits player can take = floor((HP - 1) / MobAtk)
+            // Player attacks = Hits + 1 (since player goes first)
+            
+            let attacks = 1;
+            if (hp > mob.atk) {
+                attacks += Math.floor((hp - 1) / mob.atk);
+            }
+            
+            const totalDmg = attacks * atkStat;
+            
+            if (totalDmg >= mob.hp) {
+                level++;
+            } else {
+                break; // Can't beat this level
+            }
+        }
+        return level > 0 ? level - 1 : 0; // Return last beaten level
+    }
+
+    // --- Event Listeners for Calculator ---
+    function updateCalculator() {
+        const hp = parseInt(els.curHp.value) || 0;
+        const str = parseInt(els.curStr.value) || 0;
+        const int = parseInt(els.curInt.value) || 0;
+
+        // Start checking from 0. If can't beat 0, result is "None" or similar? Prompt assumes 0 start.
+        // My logic returns "last beaten level". So if can beat 0, returns 0. If can beat 0 and 1, returns 1.
+        
+        // Let's modify logic slightly: Loop checks "Can I beat current `level`?".
+        // If yes, `level` is reachable, try next.
+        // Display the max reachable.
+        
+        let pLvl = 0;
+        while(true) {
+            const mob = getMobStats(pLvl);
+            let attacks = 1;
+            if (hp > mob.atk) attacks += Math.floor((hp - 1) / mob.atk);
+            if ((attacks * str) >= mob.hp) {
+                pLvl++;
+                if(pLvl > 10000) break; 
+            } else {
+                break;
+            }
+        }
+        
+        let mLvl = 0;
+        while(true) {
+            const mob = getMobStats(mLvl);
+            let attacks = 1;
+            if (hp > mob.atk) attacks += Math.floor((hp - 1) / mob.atk);
+            if ((attacks * int) >= mob.hp) {
+                mLvl++;
+                if(mLvl > 10000) break;
+            } else {
+                break;
+            }
+        }
+
+        els.resPhys.textContent = (pLvl > 0 ? pLvl - 1 : "不可") + "級";
+        els.resMag.textContent = (mLvl > 0 ? mLvl - 1 : "不可") + "級";
+    }
+
+    [els.curHp, els.curStr, els.curInt].forEach(el => el.addEventListener('input', updateCalculator));
+
+
+    // --- Simulator Logic ---
+
+    function updateSimulatorUI() {
+        els.simLvl.textContent = simLevel;
+        const mob = getMobStats(simLevel);
+        const statText = `HP:${mob.hp}, 攻撃力:${mob.atk}`;
+        els.physStats.textContent = statText;
+        els.magStats.textContent = statText;
+
+        els.physMultDisp.textContent = "x" + physMult;
+        els.magMultDisp.textContent = "x" + magMult;
+    }
+
+    // Calculate HP/Str based on Multiplier preset
+    // Logic for Multiplier:
+    // x1 = Survive 1 hit (Attacks: 2)
+    // x2 = Survive 3 hits (Attacks: 4) -> Doubling efficiency roughly
+    // xN = Survive (2N - 1) hits. (Attacks: 2N)
+    function applyMultiplierPreset(type) {
+        const mob = getMobStats(simLevel);
+        const mult = (type === 'phys') ? physMult : magMult;
+        
+        // Target attacks allowed
+        const attacks = mult * 2; 
+        const hitsToSurvive = attacks - 1;
+
+        // Required HP = (MobAtk * hits) + 1
+        const reqHp = (mob.atk * hitsToSurvive) + 1;
+        
+        if (type === 'phys') {
+            els.simPhysHp.value = reqHp;
+            recalcSim('phys');
+        } else {
+            els.simMagHp.value = reqHp;
+            recalcSim('mag');
+        }
+    }
+
+    function recalcSim(type) {
+        const mob = getMobStats(simLevel);
+        let hpVal, outEl;
+
+        if (type === 'phys') {
+            hpVal = parseInt(els.simPhysHp.value) || 1;
+            outEl = els.simPhysStr;
+        } else {
+            hpVal = parseInt(els.simMagHp.value) || 1;
+            outEl = els.simMagInt;
+        }
+
+        // Calculate needed Stat
+        // Attacks = floor((HP - 1)/Atk) + 1
+        let attacks = 1;
+        if (hpVal > mob.atk) {
+            attacks += Math.floor((hpVal - 1) / mob.atk);
+        }
+
+        // Required Stat = ceil(MobHP / attacks)
+        const reqStat = Math.ceil(mob.hp / attacks);
+        outEl.value = reqStat;
+    }
+
+    // --- Controls ---
+
+    window.changeSimLevel = (delta) => {
+        let newVal = simLevel + delta;
+        if (newVal < 0) newVal = 0;
+        simLevel = newVal;
+        updateSimulatorUI();
+        applyMultiplierPreset('phys');
+        applyMultiplierPreset('mag');
+    };
+
+    window.adjustMultiplier = (type, delta) => {
+        if (type === 'phys') {
+            physMult += delta;
+            if (physMult < 1) physMult = 1;
+            updateSimulatorUI();
+            applyMultiplierPreset('phys');
+        } else {
+            magMult += delta;
+            if (magMult < 1) magMult = 1;
+            updateSimulatorUI();
+            applyMultiplierPreset('mag');
+        }
+    };
+
+    // Initialize
+    updateCalculator();
+    updateSimulatorUI();
+    applyMultiplierPreset('phys');
+    applyMultiplierPreset('mag');
+
+</script>
+
+</body>
+</html>
