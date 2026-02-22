@@ -522,7 +522,7 @@
 
     window.changeSimLevel = (delta) => {
         let newLvl = state.simLevel + delta;
-        if (newLvl < 25) newLvl = 0;
+        if (newLvl < 25) newLvl = 25;
         state.simLevel = newLvl;
         updateSimulatorUI();
     };
