@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ぽこっとわーるど！ 魔物地計算機</title>
+    <title>ぽこっとわーるど！怪奇の魔物地計算機</title>
     <style>
         :root {
             --bg-color: #f4f6f8;
@@ -187,13 +187,20 @@
             font-family: monospace;
         }
 
-        /* 攻撃回数コントロール */
-        .attack-control {
+        /* 被ダメ回数コントロール */
+        .hit-control-row {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             margin-bottom: 16px;
+        }
+
+        .hit-label {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: var(--text-sub);
+            margin-right: 4px;
         }
 
         .mini-btn {
@@ -212,14 +219,14 @@
 
         .attack-input-wrapper {
             position: relative;
-            width: 70px;
+            width: 60px;
         }
         .attack-input-wrapper input {
-            padding-right: 24px;
+            padding-right: 20px;
         }
         .unit-label {
             position: absolute;
-            right: 8px;
+            right: 6px;
             top: 50%;
             transform: translateY(-50%);
             font-size: 0.8rem;
@@ -265,13 +272,13 @@
 <body>
 
 <div class="container">
-    <h1>ぽこっとわーるど！ 計算機</h1>
+    <h1>ぽこっとわーるど！怪奇の魔物地計算機</h1>
 
     <!-- ステータス入力・到達予想 -->
     <div class="card">
         <div class="input-group">
             <div class="input-item">
-                <label>現在のHP</label>
+                <label>HP</label>
                 <input type="number" id="myHp" placeholder="0">
             </div>
             <div class="input-item">
@@ -312,13 +319,14 @@
                     <div class="mob-stats" id="mobPhysStats">HP:?? / ATK:??</div>
                 </div>
 
-                <div class="attack-control">
-                    <button class="mini-btn" onclick="adjustCount('phys', -1)">◀</button>
+                <div class="hit-control-row">
+                    <span class="hit-label">被ダメ:</span>
+                    <button class="mini-btn" onclick="adjustHits('phys', -1)">◀</button>
                     <div class="attack-input-wrapper">
-                        <input type="number" id="simPhysCount" value="1" min="1" onchange="calcByCount('phys')">
+                        <input type="number" id="simPhysHits" value="0" min="0" onchange="calcByHits('phys')">
                         <span class="unit-label">回</span>
                     </div>
-                    <button class="mini-btn" onclick="adjustCount('phys', 1)">▶</button>
+                    <button class="mini-btn" onclick="adjustHits('phys', 1)">▶</button>
                 </div>
 
                 <div class="form-row">
@@ -338,13 +346,14 @@
                     <div class="mob-stats" id="mobMagStats">HP:?? / ATK:??</div>
                 </div>
 
-                <div class="attack-control">
-                    <button class="mini-btn" onclick="adjustCount('mag', -1)">◀</button>
+                <div class="hit-control-row">
+                    <span class="hit-label">被ダメ:</span>
+                    <button class="mini-btn" onclick="adjustHits('mag', -1)">◀</button>
                     <div class="attack-input-wrapper">
-                        <input type="number" id="simMagCount" value="1" min="1" onchange="calcByCount('mag')">
+                        <input type="number" id="simMagHits" value="0" min="0" onchange="calcByHits('mag')">
                         <span class="unit-label">回</span>
                     </div>
-                    <button class="mini-btn" onclick="adjustCount('mag', 1)">▶</button>
+                    <button class="mini-btn" onclick="adjustHits('mag', 1)">▶</button>
                 </div>
 
                 <div class="form-row">
@@ -362,7 +371,7 @@
 
 <script>
     // --- 初期設定・定数 ---
-    const STORAGE_KEY = 'poco_world_calc_fix_v2';
+    const STORAGE_KEY = 'poco_world_calc_hits_v1';
     
     // デフォルト設定
     const DEFAULTS = {
@@ -384,13 +393,13 @@
         
         // 物理側
         mobPhysStats: document.getElementById('mobPhysStats'),
-        simPhysCount: document.getElementById('simPhysCount'),
+        simPhysHits: document.getElementById('simPhysHits'),
         simPhysHp: document.getElementById('simPhysHp'),
         simPhysReq: document.getElementById('simPhysReq'),
 
         // 魔法側
         mobMagStats: document.getElementById('mobMagStats'),
-        simMagCount: document.getElementById('simMagCount'),
+        simMagHits: document.getElementById('simMagHits'),
         simMagHp: document.getElementById('simMagHp'),
         simMagReq: document.getElementById('simMagReq'),
     };
@@ -400,10 +409,9 @@
     // --- 計算ロジック ---
 
     // 魔物のステータス計算
-    // 【修正】等級×50 (25級=1250)
-    // 0級の場合は0になってしまうので、0級は特別に50とする（または1級相当）
+    // 等級×50 (25級=1250)
+    // 0級の場合は特別に50とする
     function getMobStats(level) {
-        // level 0 は 50、それ以外は level * 50
         const multiplier = level === 0 ? 1 : level;
         return {
             hp: multiplier * 50,
@@ -450,7 +458,6 @@
             }
         }
 
-        // 結果表示：0級でも0級と表示
         return maxReach >= 0 ? maxReach + "級" : "不可";
     }
 
@@ -464,51 +471,59 @@
         els.mobMagStats.textContent = text;
 
         // 再計算
-        calcByCount('phys');
-        calcByCount('mag');
+        calcByHits('phys');
+        calcByHits('mag');
         
         saveData();
     }
 
-    // 攻撃回数 -> 必要HP, 火力
-    function calcByCount(type) {
+    // 被ダメ回数(Hits) -> 必要HP, 火力
+    function calcByHits(type) {
         const mob = getMobStats(state.simLevel);
-        const countInput = type === 'phys' ? els.simPhysCount : els.simMagCount;
+        const hitInput = type === 'phys' ? els.simPhysHits : els.simMagHits;
         const hpInput = type === 'phys' ? els.simPhysHp : els.simMagHp;
         const reqInput = type === 'phys' ? els.simPhysReq : els.simMagReq;
 
-        let count = parseInt(countInput.value);
-        if (count < 1) count = 1;
-        countInput.value = count;
+        let hits = parseInt(hitInput.value);
+        if (hits < 0) hits = 0; // 0回以上
+        hitInput.value = hits;
 
-        // 必要HP = (Atk * (Hits-1)) + 1
-        const hitsToSurvive = count - 1;
-        const reqHp = (mob.atk * hitsToSurvive) + 1;
+        // 自分の攻撃回数 = 被ダメ回数 + 1
+        const attacks = hits + 1;
+
+        // 必要HP = (Atk * 被ダメ回数) + 1
+        // ※ 0回ならHP1でOK、1回ならATK+1必要
+        const reqHp = (mob.atk * hits) + 1;
         
-        // 必要火力 = ceil(HP / Hits)
-        const reqStat = Math.ceil(mob.hp / count);
+        // 必要火力 = ceil(MobHP / 自分の攻撃回数)
+        const reqStat = Math.ceil(mob.hp / attacks);
 
         hpInput.value = reqHp;
         reqInput.value = reqStat;
     }
 
-    // HP -> 攻撃回数, 必要火力
+    // HP -> 被ダメ回数, 必要火力
     function calcByHp(type) {
         const mob = getMobStats(state.simLevel);
-        const countInput = type === 'phys' ? els.simPhysCount : els.simMagCount;
+        const hitInput = type === 'phys' ? els.simPhysHits : els.simMagHits;
         const hpInput = type === 'phys' ? els.simPhysHp : els.simMagHp;
         const reqInput = type === 'phys' ? els.simPhysReq : els.simMagReq;
 
         const hp = parseInt(hpInput.value) || 1;
         
-        let attacks = 1;
+        // 耐えられる被弾回数 = floor((HP - 1) / MobAtk)
+        let hits = 0;
         if (hp > mob.atk) {
-            attacks += Math.floor((hp - 1) / mob.atk);
+            hits = Math.floor((hp - 1) / mob.atk);
         }
+        
+        // 攻撃可能回数
+        const attacks = hits + 1;
 
+        // 必要火力
         const reqStat = Math.ceil(mob.hp / attacks);
 
-        countInput.value = attacks;
+        hitInput.value = hits; // UIには被ダメ回数を表示
         reqInput.value = reqStat;
     }
 
@@ -516,19 +531,18 @@
 
     window.changeSimLevel = (delta) => {
         let newLvl = state.simLevel + delta;
-        // シミュレーターは25級未満にはしない
         if (newLvl < 25) newLvl = 25;
         state.simLevel = newLvl;
         updateSimulatorUI();
     };
 
-    window.adjustCount = (type, delta) => {
-        const el = type === 'phys' ? els.simPhysCount : els.simMagCount;
-        let val = parseInt(el.value) || 1;
+    window.adjustHits = (type, delta) => {
+        const el = type === 'phys' ? els.simPhysHits : els.simMagHits;
+        let val = parseInt(el.value) || 0;
         val += delta;
-        if (val < 1) val = 1;
+        if (val < 0) val = 0;
         el.value = val;
-        calcByCount(type);
+        calcByHits(type);
     };
 
     // --- データ保存・読み込み ---
@@ -549,7 +563,6 @@
             try {
                 const parsed = JSON.parse(saved);
                 state = { ...state, ...parsed };
-                // データの整合性チェック
                 if (state.simLevel < 25) state.simLevel = 25;
             } catch(e) {
                 console.error("Save data error", e);
@@ -570,6 +583,5 @@
     loadData();
 
 </script>
-
 </body>
 </html>
