@@ -10,8 +10,8 @@
             --card-bg: #ffffff;
             --text-main: #333333;
             --text-sub: #666666;
-            --accent-phys: #e57373; /* 物理: 赤系 */
-            --accent-mag: #64b5f6;  /* 魔法: 青系 */
+            --accent-phys: #e57373; /* 物理: 赤 */
+            --accent-mag: #64b5f6;  /* 魔法: 青 */
             --border-radius: 12px;
             --shadow: 0 4px 12px rgba(0,0,0,0.08);
             --btn-hover: #f0f0f0;
@@ -43,13 +43,12 @@
             letter-spacing: 0.05em;
         }
 
-        /* 共通カードスタイル */
+        /* カード共通スタイル */
         .card {
             background: var(--card-bg);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
             padding: 24px;
-            transition: transform 0.2s ease;
         }
 
         /* ステータス入力エリア */
@@ -87,10 +86,9 @@
             outline: none;
             border-color: #888;
             background: #fff;
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.05);
         }
 
-        /* 結果表示エリア */
+        /* 到達予想結果エリア */
         .result-display {
             margin-top: 24px;
             display: grid;
@@ -107,7 +105,7 @@
             color: var(--text-sub);
         }
 
-        .result-box .level-badge {
+        .level-badge {
             font-size: 2rem;
             font-weight: 800;
             line-height: 1.2;
@@ -165,7 +163,6 @@
             padding: 20px;
             border: 1px solid #eee;
             position: relative;
-            overflow: hidden;
         }
 
         .sim-panel.phys { border-top: 4px solid var(--accent-phys); }
@@ -187,7 +184,7 @@
         .mob-stats {
             font-size: 0.9rem;
             color: var(--text-sub);
-            font-family: monospace; /* 数字を揃えるため */
+            font-family: monospace;
         }
 
         /* 攻撃回数コントロール */
@@ -218,7 +215,7 @@
             width: 70px;
         }
         .attack-input-wrapper input {
-            padding-right: 24px; /* "回"の文字分 */
+            padding-right: 24px;
         }
         .unit-label {
             position: absolute;
@@ -270,7 +267,7 @@
 <div class="container">
     <h1>ぽこっとわーるど！ 計算機</h1>
 
-    <!-- 現在のステータス入力 -->
+    <!-- ステータス入力・到達予想 -->
     <div class="card">
         <div class="input-group">
             <div class="input-item">
@@ -299,7 +296,7 @@
         </div>
     </div>
 
-    <!-- シミュレーター -->
+    <!-- シミュレーター (25級スタート) -->
     <div class="card">
         <div class="sim-header">
             <button class="circle-btn" onclick="changeSimLevel(-25)">◀</button>
@@ -365,9 +362,9 @@
 
 <script>
     // --- 初期設定・定数 ---
-    const STORAGE_KEY = 'poco_world_calc_v2';
+    const STORAGE_KEY = 'poco_world_calc_fix_v2';
     
-    // デフォルト値
+    // デフォルト設定
     const DEFAULTS = {
         hp: 50,
         str: 5,
@@ -403,11 +400,14 @@
     // --- 計算ロジック ---
 
     // 魔物のステータス計算
-    // 体力:(等級+1)×50, 攻撃力:(等級+1)×5
+    // 【修正】等級×50 (25級=1250)
+    // 0級の場合は0になってしまうので、0級は特別に50とする（または1級相当）
     function getMobStats(level) {
+        // level 0 は 50、それ以外は level * 50
+        const multiplier = level === 0 ? 1 : level;
         return {
-            hp: (level + 1) * 50,
-            atk: (level + 1) * 5
+            hp: multiplier * 50,
+            atk: multiplier * 5
         };
     }
 
@@ -417,8 +417,8 @@
         const str = parseInt(els.myStr.value) || 0;
         const int = parseInt(els.myInt.value) || 0;
 
-        els.resPhys.textContent = calcMaxLevel(hp, str) + "級";
-        els.resMag.textContent = calcMaxLevel(hp, int) + "級";
+        els.resPhys.textContent = calcMaxLevel(hp, str);
+        els.resMag.textContent = calcMaxLevel(hp, int);
         
         saveData();
     }
@@ -427,29 +427,31 @@
     function calcMaxLevel(hp, atkStat) {
         if (hp <= 0 || atkStat <= 0) return "不可";
         
-        // 単純ループで計算（ある程度高いレベルまでチェック）
-        // ※効率化のため、計算上限を設けています
+        let maxReach = -1; 
+
+        // 0級から順に計算
         for (let lvl = 0; lvl <= 5000; lvl++) {
             const mob = getMobStats(lvl);
             
-            // プレイヤーが耐えられる被弾回数
-            // HP > MobAtk * hits となる最大のhits
-            // hits = floor((HP - 1) / MobAtk)
-            // 攻撃可能回数 = hits + 1 (先制攻撃のため)
+            // 攻撃可能回数 = 耐えられる被弾数 + 1
+            // 耐えられる被弾数 = floor((HP - 1) / MobAtk)
             let attacks = 1;
             if (hp > mob.atk) {
                 attacks += Math.floor((hp - 1) / mob.atk);
             }
             
-            // 与ダメージ
             const dmg = attacks * atkStat;
             
-            // 倒せなかったら、前のレベルが限界
-            if (dmg < mob.hp) {
-                return lvl > 0 ? (lvl - 1) : "不可";
+            // 魔物HPを削りきれるなら記録して次へ
+            if (dmg >= mob.hp) {
+                maxReach = lvl;
+            } else {
+                break;
             }
         }
-        return "5000+";
+
+        // 結果表示：0級でも0級と表示
+        return maxReach >= 0 ? maxReach + "級" : "不可";
     }
 
     // --- シミュレーターロジック ---
@@ -461,14 +463,14 @@
         els.mobPhysStats.textContent = text;
         els.mobMagStats.textContent = text;
 
-        // レベルが変わったら現在の攻撃回数設定に基づいて再計算
+        // 再計算
         calcByCount('phys');
         calcByCount('mag');
         
         saveData();
     }
 
-    // 攻撃回数をもとに、必要なHPと攻撃力を計算する (Count -> HP, ReqStat)
+    // 攻撃回数 -> 必要HP, 火力
     function calcByCount(type) {
         const mob = getMobStats(state.simLevel);
         const countInput = type === 'phys' ? els.simPhysCount : els.simMagCount;
@@ -479,22 +481,18 @@
         if (count < 1) count = 1;
         countInput.value = count;
 
-        // 必要HP計算
-        // N回攻撃する = (N-1)回被弾に耐える必要がある
-        // 耐えるHP = (MobAtk * (N-1)) + 1
+        // 必要HP = (Atk * (Hits-1)) + 1
         const hitsToSurvive = count - 1;
         const reqHp = (mob.atk * hitsToSurvive) + 1;
         
-        // 必要火力計算
-        // N回でMobHPを削り切る
-        // ReqStat = ceil(MobHP / N)
+        // 必要火力 = ceil(HP / Hits)
         const reqStat = Math.ceil(mob.hp / count);
 
         hpInput.value = reqHp;
         reqInput.value = reqStat;
     }
 
-    // 入力されたHPをもとに、攻撃回数と必要な攻撃力を計算する (HP -> Count, ReqStat)
+    // HP -> 攻撃回数, 必要火力
     function calcByHp(type) {
         const mob = getMobStats(state.simLevel);
         const countInput = type === 'phys' ? els.simPhysCount : els.simMagCount;
@@ -503,15 +501,11 @@
 
         const hp = parseInt(hpInput.value) || 1;
         
-        // 攻撃回数計算
-        // 耐えられる回数 = floor((HP - 1) / MobAtk)
-        // 攻撃できる回数 = 耐えられる回数 + 1
         let attacks = 1;
         if (hp > mob.atk) {
             attacks += Math.floor((hp - 1) / mob.atk);
         }
 
-        // 必要火力計算
         const reqStat = Math.ceil(mob.hp / attacks);
 
         countInput.value = attacks;
@@ -522,6 +516,7 @@
 
     window.changeSimLevel = (delta) => {
         let newLvl = state.simLevel + delta;
+        // シミュレーターは25級未満にはしない
         if (newLvl < 25) newLvl = 25;
         state.simLevel = newLvl;
         updateSimulatorUI();
@@ -554,11 +549,13 @@
             try {
                 const parsed = JSON.parse(saved);
                 state = { ...state, ...parsed };
+                // データの整合性チェック
+                if (state.simLevel < 25) state.simLevel = 25;
             } catch(e) {
                 console.error("Save data error", e);
             }
         }
-        // UIに反映
+        // UI反映
         els.myHp.value = state.hp;
         els.myStr.value = state.str;
         els.myInt.value = state.int;
@@ -566,12 +563,10 @@
         updateSimulatorUI();
     }
 
-    // イベントリスナー設定
     [els.myHp, els.myStr, els.myInt].forEach(el => {
         el.addEventListener('input', updateReachability);
     });
 
-    // 初期化
     loadData();
 
 </script>
