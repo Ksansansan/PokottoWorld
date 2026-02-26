@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ぽこっとわーるど！怪奇の魔物地計算機</title>
+    <title>ぽこっとわーるど！ 魔物地計算機</title>
     <style>
         :root {
             --bg-color: #f4f6f8;
@@ -214,19 +214,21 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0; /* ボタンが潰れないように */
         }
         .mini-btn:hover { background: #f0f0f0; }
 
         .attack-input-wrapper {
             position: relative;
-            width: 60px;
+            width: 90px; /* 横幅を拡張 */
         }
         .attack-input-wrapper input {
-            padding-right: 20px;
+            padding-right: 28px;
+            text-align: center;
         }
         .unit-label {
             position: absolute;
-            right: 6px;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
             font-size: 0.8rem;
@@ -262,6 +264,26 @@
             border-color: #ced4da;
         }
 
+        /* 回復水計算エリア */
+        .recovery-info {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed #ccc;
+            text-align: center;
+        }
+
+        .rec-label {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+        }
+
+        .rec-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
         @media (max-width: 600px) {
             .input-group { grid-template-columns: 1fr; }
             .sim-grid { grid-template-columns: 1fr; }
@@ -272,13 +294,13 @@
 <body>
 
 <div class="container">
-    <h1>ぽこっとわーるど！怪奇の魔物地計算機</h1>
+    <h1>ぽこっとわーるど！ 計算機</h1>
 
     <!-- ステータス入力・到達予想 -->
     <div class="card">
         <div class="input-group">
             <div class="input-item">
-                <label>HP</label>
+                <label>現在のHP</label>
                 <input type="number" id="myHp" placeholder="0">
             </div>
             <div class="input-item">
@@ -331,11 +353,17 @@
 
                 <div class="form-row">
                     <label>HP</label>
-                    <input type="number" id="simPhysHp" class="readonly-input" readonly>
+                    <input type="number" id="simPhysHp" oninput="calcByHp('phys')">
                 </div>
                 <div class="form-row">
                     <label>筋力</label>
                     <input type="number" id="simPhysReq" class="readonly-input" readonly>
+                </div>
+
+                <!-- 回復水計算 -->
+                <div class="recovery-info">
+                    <div class="rec-label" id="recLabelPhys">0級 -> 25級 回復水必要量</div>
+                    <div class="rec-value" id="recValPhys">計算中...</div>
                 </div>
             </div>
 
@@ -358,11 +386,17 @@
 
                 <div class="form-row">
                     <label>HP</label>
-                    <input type="number" id="simMagHp" class="readonly-input" readonly>
+                    <input type="number" id="simMagHp" oninput="calcByHp('mag')">
                 </div>
                 <div class="form-row">
                     <label>知力</label>
                     <input type="number" id="simMagReq" class="readonly-input" readonly>
+                </div>
+
+                <!-- 回復水計算 -->
+                <div class="recovery-info">
+                    <div class="rec-label" id="recLabelMag">0級 -> 25級 回復水必要量</div>
+                    <div class="rec-value" id="recValMag">計算中...</div>
                 </div>
             </div>
         </div>
@@ -371,14 +405,16 @@
 
 <script>
     // --- 初期設定・定数 ---
-    const STORAGE_KEY = 'poco_world_calc_hits_v1';
+    const STORAGE_KEY = 'poco_world_calc_final_v3';
     
     // デフォルト設定
     const DEFAULTS = {
         hp: 50,
         str: 5,
         int: 5,
-        simLevel: 25
+        simLevel: 25,
+        p_hits: 0, // 物理被ダメ初期値
+        m_hits: 0  // 魔法被ダメ初期値
     };
 
     // DOM要素の取得
@@ -396,12 +432,16 @@
         simPhysHits: document.getElementById('simPhysHits'),
         simPhysHp: document.getElementById('simPhysHp'),
         simPhysReq: document.getElementById('simPhysReq'),
+        recLabelPhys: document.getElementById('recLabelPhys'),
+        recValPhys: document.getElementById('recValPhys'),
 
         // 魔法側
         mobMagStats: document.getElementById('mobMagStats'),
         simMagHits: document.getElementById('simMagHits'),
         simMagHp: document.getElementById('simMagHp'),
         simMagReq: document.getElementById('simMagReq'),
+        recLabelMag: document.getElementById('recLabelMag'),
+        recValMag: document.getElementById('recValMag'),
     };
 
     let state = { ...DEFAULTS };
@@ -442,7 +482,6 @@
             const mob = getMobStats(lvl);
             
             // 攻撃可能回数 = 耐えられる被弾数 + 1
-            // 耐えられる被弾数 = floor((HP - 1) / MobAtk)
             let attacks = 1;
             if (hp > mob.atk) {
                 attacks += Math.floor((hp - 1) / mob.atk);
@@ -470,6 +509,12 @@
         els.mobPhysStats.textContent = text;
         els.mobMagStats.textContent = text;
 
+        // UI表示更新 (テキスト更新 -> 計算処理)
+        const prevLevel = state.simLevel - 25;
+        const rangeText = `${Math.max(0, prevLevel)}級->${state.simLevel}級 回復水必要量`;
+        els.recLabelPhys.textContent = rangeText;
+        els.recLabelMag.textContent = rangeText;
+
         // 再計算
         calcByHits('phys');
         calcByHits('mag');
@@ -477,7 +522,7 @@
         saveData();
     }
 
-    // 被ダメ回数(Hits) -> 必要HP, 火力
+    // 被ダメ回数(Hits) -> 必要HP, 火力 -> 回復水計算
     function calcByHits(type) {
         const mob = getMobStats(state.simLevel);
         const hitInput = type === 'phys' ? els.simPhysHits : els.simMagHits;
@@ -485,14 +530,18 @@
         const reqInput = type === 'phys' ? els.simPhysReq : els.simMagReq;
 
         let hits = parseInt(hitInput.value);
-        if (hits < 0) hits = 0; // 0回以上
+        if (hits < 0) hits = 0;
+        if (isNaN(hits)) hits = 0;
         hitInput.value = hits;
+
+        // 状態保存用
+        if (type === 'phys') state.p_hits = hits;
+        else state.m_hits = hits;
 
         // 自分の攻撃回数 = 被ダメ回数 + 1
         const attacks = hits + 1;
 
         // 必要HP = (Atk * 被ダメ回数) + 1
-        // ※ 0回ならHP1でOK、1回ならATK+1必要
         const reqHp = (mob.atk * hits) + 1;
         
         // 必要火力 = ceil(MobHP / 自分の攻撃回数)
@@ -500,9 +549,13 @@
 
         hpInput.value = reqHp;
         reqInput.value = reqStat;
+
+        // 回復水計算を更新
+        updateRecoveryCost(type);
+        saveData();
     }
 
-    // HP -> 被ダメ回数, 必要火力
+    // HP -> 被ダメ回数, 必要火力 -> 回復水計算
     function calcByHp(type) {
         const mob = getMobStats(state.simLevel);
         const hitInput = type === 'phys' ? els.simPhysHits : els.simMagHits;
@@ -511,20 +564,62 @@
 
         const hp = parseInt(hpInput.value) || 1;
         
-        // 耐えられる被弾回数 = floor((HP - 1) / MobAtk)
+        // 耐えられる被弾回数
         let hits = 0;
         if (hp > mob.atk) {
             hits = Math.floor((hp - 1) / mob.atk);
         }
         
-        // 攻撃可能回数
         const attacks = hits + 1;
-
-        // 必要火力
         const reqStat = Math.ceil(mob.hp / attacks);
 
-        hitInput.value = hits; // UIには被ダメ回数を表示
+        hitInput.value = hits;
         reqInput.value = reqStat;
+
+        // 状態保存用
+        if (type === 'phys') state.p_hits = hits;
+        else state.m_hits = hits;
+
+        // 回復水計算を更新
+        updateRecoveryCost(type);
+        saveData();
+    }
+
+    // 回復水必要量（総被ダメージ）の計算
+    // 現在の火力(reqStat)を維持した状態で、前のチェックポイントから直前まで戦った場合の被弾合計
+    function updateRecoveryCost(type) {
+        const endLvl = state.simLevel;
+        const startLvl = Math.max(0, endLvl - 25);
+        
+        const reqInput = type === 'phys' ? els.simPhysReq : els.simMagReq;
+        const playerAtk = parseInt(reqInput.value) || 0;
+        const outEl = type === 'phys' ? els.recValPhys : els.recValMag;
+
+        if (playerAtk <= 0) {
+            outEl.textContent = "---";
+            return;
+        }
+
+        let totalDmg = 0;
+
+        // startLvl から endLvl-1 までループ
+        // (例: 75級なら、50級〜74級の戦闘をシミュレート)
+        for (let lvl = startLvl; lvl < endLvl; lvl++) {
+            const mob = getMobStats(lvl);
+
+            // このレベルの敵を倒すのにかかる攻撃回数
+            const attacksNeeded = Math.ceil(mob.hp / playerAtk);
+            
+            // 被弾回数 (自分が先制なので -1)
+            // 1発で倒せるなら被弾0
+            const hitsTaken = Math.max(0, attacksNeeded - 1);
+            
+            // ダメージ加算
+            const dmg = hitsTaken * mob.atk;
+            totalDmg += dmg;
+        }
+
+        outEl.textContent = totalDmg.toLocaleString() + " 個";
     }
 
     // --- 操作系 ---
@@ -542,7 +637,7 @@
         val += delta;
         if (val < 0) val = 0;
         el.value = val;
-        calcByHits(type);
+        calcByHits(type); // ここで保存もされる
     };
 
     // --- データ保存・読み込み ---
@@ -552,7 +647,9 @@
             hp: parseInt(els.myHp.value) || 0,
             str: parseInt(els.myStr.value) || 0,
             int: parseInt(els.myInt.value) || 0,
-            simLevel: state.simLevel
+            simLevel: state.simLevel,
+            p_hits: state.p_hits,
+            m_hits: state.m_hits
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -572,6 +669,11 @@
         els.myHp.value = state.hp;
         els.myStr.value = state.str;
         els.myInt.value = state.int;
+        
+        // 被ダメ回数の復元
+        els.simPhysHits.value = state.p_hits || 0;
+        els.simMagHits.value = state.m_hits || 0;
+
         updateReachability();
         updateSimulatorUI();
     }
@@ -583,5 +685,6 @@
     loadData();
 
 </script>
+
 </body>
 </html>
